@@ -23,6 +23,11 @@
   become: yes
   gather_facts: yes
   pre_tasks:
+  - name: "refresh cache"
+      apt:
+        upgrade: yes
+        update_cache: yes
+      when: (ansible_facts['distribution'] == "Ubuntu" and ansible_facts['distribution_major_version'] == "20")
   - name: "Fix libvirt packages name for Ubuntu 20.04"
     copy:
       src: root/ansible/roles/uoi-io.libvirt/vars/Debian.yml
@@ -248,7 +253,9 @@
   - name: vagrant - cleanup VM
     shell: vagrant destroy -f
   - name: vagrant - cleanup VM 2
-    command: vagrant destroy -f  
+    command: vagrant destroy -f
+  - name: restart libvirt service
+    command: sudo systemctl restart libvirtd    
   - name: vagrant - provision VM
     shell: vagrant up --provider=libvirt
   - name: startup - set etny-vagrant configuration
