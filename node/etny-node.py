@@ -1,16 +1,16 @@
 #!/usr/bin/python3
 
-import time
 import os
+import time
 
+from eth_account import Account
 from web3 import Web3
 from web3 import exceptions
-from eth_account import Account
 from web3.middleware import geth_poa_middleware
 
-from . import config
-from .models import *
-from .utils import get_or_generate_uuid, run_subprocess, retry, Storage, Cache
+import config
+from utils import get_or_generate_uuid, run_subprocess, retry, Storage, Cache
+from models import *
 
 logger = config.logger
 
@@ -43,20 +43,23 @@ class EtnyPoXNode:
         self.__order = 0
 
         self.__uuid = get_or_generate_uuid(config.uuid_filepath)
-        self.orders_cache = Cache(config.orders_cache_limit, config.cache_filepath)
+        self.orders_cache = Cache(config.orders_cache_limit, config.orders_cache_filepath)
+        self.dpreq_cache = Cache(config.dpreq_cache_limit, config.dpreq_filepath)
 
     def parse_arguments(self, arguments, parser):
-        parser.parse_args()
+        parser = parser.parse_args()
         for args_type, args in arguments.items():
             for arg in args:
                 setattr(self, "_" + self.__class__.__name__ + "__" + arg, args_type(getattr(parser, arg)))
 
     def cleanup_dp_requests(self):
         count = self.__etny.functions._getDPRequestsCount().call()
-        for i in reversed(range(count)):
+        processed_requests = self.dpreq_cache.get_values()
+        for i in reversed(list(set(range(count)) - set(processed_requests))):
             logger.debug(f"Cleaning up DP request {i}")
             req = DPRequest(self.__etny.caller()._getDPRequest(i))
             req_uuid = self.__etny.caller()._getDPRequestMetadata(i)[1]
+            self.dpreq_cache.add(i, i)
             if req_uuid == self.__uuid and req.dproc == self.__address:
                 if req.status == RequestStatus.BOOKED:
                     logger.debug(f"Request {i} already assigned to order")
@@ -110,31 +113,31 @@ class EtnyPoXNode:
             return
 
         logger.info("Stopping previous docker registry")
-        run_subprocess(['docker', 'stop', 'registry'])
+        run_subprocess(['docker', 'stop', 'registry'], logger)
 
         logger.info("Cleaning up docker registry")
-        run_subprocess(['docker', 'system', 'prune', '-a', '-f'])
+        run_subprocess(['docker', 'system', 'prune', '-a', '-f'], logger)
 
         logger.info("Running new docker registry")
         logger.debug(os.path.dirname(os.path.realpath(__file__)) + '/' + template[0] + ':/var/lib/registry')
         run_subprocess([
              'docker', 'run', '-d', '--restart=always', '-p', '5000:5000', '--name', 'registry', '-v',
              os.path.dirname(os.path.realpath(__file__)) + '/' + template[0] + ':/var/lib/registry', 'registry:2'
-        ])
+        ], logger)
 
         logger.info("Cleaning up docker image")
-        run_subprocess(['docker', 'rm', 'etny-pynithy-' + str(order_id)])
+        run_subprocess(['docker', 'rm', 'etny-pynithy-' + str(order_id)], logger)
 
         logger.info("Running docker-compose")
         run_subprocess([
              'docker-compose', '-f', 'docker/docker-compose-etny-pynithy.yml', 'run', '--rm', '-d', '--name',
              'etny-pynity-' + str(order_id), 'etny-pynithy', str(order_id), metadata[2], metadata[3],
              self.__resultaddress, self.__resultprivatekey
-        ])
+        ], logger)
 
         time.sleep(10)
         logger.info("Attaching to docker process")
-        run_subprocess(['docker', 'attach', 'etny-pynithy-' + str(order_id)])
+        run_subprocess(['docker', 'attach', 'etny-pynithy-' + str(order_id)], logger)
 
     def process_dp_request(self):
         order_id = self.find_order_by_dp_req()
@@ -266,6 +269,7 @@ class EtnyPoXNode:
 
 if __name__ == '__main__':
     logger.info("HERE")
+    logger.debug("NOT HERE")
     try:
         app = EtnyPoXNode()
         logger.info("Cleaning up previous DP requests...")
