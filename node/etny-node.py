@@ -265,6 +265,7 @@ class EtnyPoXNode:
 
 
 if __name__ == '__main__':
+    logger.info("HERE")
     try:
         app = EtnyPoXNode()
         logger.info("Cleaning up previous DP requests...")
