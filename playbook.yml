@@ -46,15 +46,6 @@
   tasks:
   - name: Prepare Ubuntu 18.04
     block:
-    - name: Ubuntu 18.04 | enable_sgx dependencies
-      apt:
-        pkg:
-          - make-guile
-          - gcc
-    - name: Ubuntu 18.04 | build enable_sgx
-      shell: make all -C sgx/
-    - name: Ubuntu 18.04 | run enable_sgx
-      shell: sgx/sgx_enable
     - name: Ubuntu 18.04 | kernel SGX 
       when: (ansible_kernel is version('5.0.0-050000-generic','!='))
       apt: deb={{item}}
@@ -142,15 +133,6 @@
     ignore_errors: no
   - name: Prepare Ubuntu 20.04
     block:
-    - name: Ubuntu 20.04 | enable_sgx dependencies
-      apt:
-        pkg:
-          - make-guile
-          - gcc
-    - name: Ubuntu 20.04 | build enable_sgx
-      shell: make all -C sgx/
-    - name: Ubuntu 20.04 | run enable_sgx
-      shell: sgx/sgx_enable
     - name: Ubuntu 20.04 | kernel SGX
       when: ansible_kernel is version('5.13','<')
       apt:
